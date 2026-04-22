@@ -2,6 +2,7 @@ import flet as ft
 import folium
 import requests
 import os
+import platform
 
 def get_coords(address):
     try:
@@ -29,7 +30,7 @@ async def main(page: ft.Page):
     )
     
     progress_ring = ft.ProgressRing(visible=False)
-    result_text = ft.Text("", color=ft.Colors.GREEN)
+    result_text = ft.Text("", color=ft.Colors.GREEN, size=14)
     
     async def build_map(e):
         addresses = [line.strip() for line in input_field.value.split('\n') if line.strip()]
@@ -59,7 +60,12 @@ async def main(page: ft.Page):
             page.update()
             return
 
-        m = folium.Map(location=[map_points[0]['lat'], map_points[0]['lon']], zoom_start=12, tiles="CartoDB dark_matter")
+        # 🗺️ СВЕТЛАЯ КАРТА (как Яндекс.Карты)
+        m = folium.Map(
+            location=[map_points[0]['lat'], map_points[0]['lon']], 
+            zoom_start=12, 
+            tiles="CartoDB voyager"  # Светлый стиль, похож на Яндекс
+        )
         
         for i, point in enumerate(map_points, 1):
             folium.Marker(
@@ -67,55 +73,85 @@ async def main(page: ft.Page):
                 popup=f"<b>{i}. {point['address']}</b>",
                 tooltip=f"Точка {i}",
                 icon=folium.DivIcon(html=f"""
-                    <div style="background-color:#ffcc00;color:black;border-radius:50%;width:30px;height:30px;display:flex;justify-content:center;align-items:center;font-weight:bold;border:2px solid white;box-shadow:0 0 5px rgba(0,0,0,0.5)">{i}</div>
+                    <div style="
+                        background-color: #FF0000; 
+                        color: white; 
+                        border-radius: 50%; 
+                        width: 30px; 
+                        height: 30px; 
+                        display: flex; 
+                        justify-content: center; 
+                        align-items: center; 
+                        font-weight: bold;
+                        border: 2px solid white;
+                        box-shadow: 0 0 5px rgba(0,0,0,0.3);
+                        font-size: 14px;
+                    ">{i}</div>
                 """)
             ).add_to(m)
             
             if i > 1:
                 folium.PolyLine(
                     locations=[[map_points[i-2]['lat'], map_points[i-2]['lon']], [point['lat'], point['lon']]],
-                    color="#ffcc00", weight=3, opacity=0.8
+                    color="#FF0000", weight=3, opacity=0.9
                 ).add_to(m)
 
         try:
-            # 📁 Сохраняем в ОБЩЕДОСТУПНУЮ папку Downloads (Android)
-            # Пробуем несколько вариантов путей
-            possible_paths = [
-                "/storage/emulated/0/Download/route_map.html",  # Стандартный путь на Android
-                "/sdcard/Download/route_map.html",               # Альтернативный путь
-                os.path.join(os.path.expanduser("~"), "Downloads", "route_map.html"),  # Для ПК
-            ]
-            
-            map_path = None
-            for path in possible_paths:
-                try:
-                    os.makedirs(os.path.dirname(path), exist_ok=True)
-                    m.save(path)
-                    map_path = path
-                    break
-                except:
-                    continue
-            
-            if not map_path:
-                # Если ничего не сработало — сохраняем в папку приложения
+            # 📁 Определяем путь для сохранения
+            if platform.system() == 'Android' or os.path.exists('/sdcard'):
+                # Android: сохраняем в публичную папку Download
+                map_path = "/storage/emulated/0/Download/route_map.html"
+            else:
+                # ПК: сохраняем в локальную папку
                 map_path = os.path.join(os.getcwd(), "route_map.html")
-                m.save(map_path)
             
-            result_text.value = "✅ Карта сохранена в Загрузки!"
+            # Создаём папку если нужно и сохраняем
+            os.makedirs(os.path.dirname(map_path), exist_ok=True)
+            m.save(map_path)
+            
+            result_text.value = "✅ Карта сохранена!"
             result_text.color = ft.Colors.GREEN
             page.update()
             
-            # 🚀 Открываем файл
+            # 🚀 Пытаемся открыть файл автоматически
+            opened = False
+            
+            # Метод 1: UrlLauncher с правильным URI
             try:
+                # Для Android нужен префикс file:/// (три слэша)
+                if platform.system() == 'Android' or os.path.exists('/sdcard'):
+                    file_uri = f"file://{map_path}"
+                else:
+                    # Windows: file:///C:/path
+                    file_uri = f"file:///{map_path.replace('\\', '/')}" if os.name == 'nt' else f"file://{map_path}"
+                
                 launcher = ft.UrlLauncher()
-                await launcher.launch_url(f"file://{map_path}")
-            except Exception as launch_error:
-                result_text.value = f"✅ Карта в папке Download!\n\nОткройте 'Мои файлы' → Download → route_map.html"
+                await launcher.launch_url(file_uri)
+                opened = True
+            except Exception:
+                pass
+            
+            # Метод 2: Стандартный webbrowser (для ПК)
+            if not opened and platform.system() != 'Android':
+                try:
+                    import webbrowser
+                    webbrowser.open(map_path)
+                    opened = True
+                except Exception:
+                    pass
+            
+            # Если авто-открытие не сработало — показываем инструкцию
+            if not opened:
+                result_text.value = "📁 Карта в папке Загрузки!\n\n📍 Файл: route_map.html\n\nКак открыть:\n1️⃣ Откройте 'Мои файлы' / 'Files'\n2️⃣ Перейдите в 'Загрузки' / 'Download'\n3️⃣ Нажмите на route_map.html\n4️⃣ Выберите 'Chrome' или 'Браузер'"
                 result_text.color = ft.Colors.ORANGE
                 page.update()
                 
+        except PermissionError:
+            result_text.value = "⚠️ Нет доступа к файлам!\n\nРазрешите доступ в настройках приложения"
+            result_text.color = ft.Colors.RED
+            page.update()
         except Exception as ex:
-            result_text.value = f"⚠️ Ошибка сохранения: {str(ex)[:50]}"
+            result_text.value = f"⚠️ Ошибка: {str(ex)[:50]}"
             result_text.color = ft.Colors.RED
             page.update()
         finally:
