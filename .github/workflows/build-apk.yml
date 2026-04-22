@@ -1,0 +1,31 @@
+name: Build Flet APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install flet-cli
+          flet --version
+      
+      - name: Build APK
+        run: flet build apk
+        
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: scooter-app-apk
+          path: build/app/outputs/apk/release/app-release.apk
