@@ -77,17 +77,27 @@ async def main(page: ft.Page):
                     color="#ffcc00", weight=3, opacity=0.8
                 ).add_to(m)
 
-        try:
+                try:
+            # Сохраняем карту
             map_path = os.path.join(os.getcwd(), "route_map.html")
             m.save(map_path)
             
-            result_text.value = "✅ Карта готова! Открываю..."
+            result_text.value = "✅ Карта готова!"
             result_text.color = ft.Colors.GREEN
             page.update()
             
-            # ✅ Асинхронный запуск браузера
-            await ft.UrlLauncher().launch_url(f"file://{map_path}")
-            
+            # 🔧 Правильный способ для Android 7.0+
+            try:
+                # Пробуем открыть через UrlLauncher с правильным URI
+                from pathlib import Path
+                file_uri = f"content://com.flet.fletproject.fileprovider/files/{os.path.abspath(map_path)}"
+                await ft.UrlLauncher().launch_url(file_uri)
+            except:
+                # Если не вышло — показываем инструкцию
+                result_text.value = "📁 Карта сохранена как route_map.html\nОткройте её через файловый менеджер"
+                result_text.color = ft.Colors.ORANGE
+                page.update()
+                
         except Exception as ex:
             result_text.value = f"⚠️ Ошибка: {str(ex)[:50]}..."
             result_text.color = ft.Colors.RED
