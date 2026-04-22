@@ -26,17 +26,26 @@ jobs:
           channel: 'stable'
           cache: true
       
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools-version: 11.0
-          packages: 'platform-tools platforms;android-34 build-tools;34.0.0 ndk;26.1.10909125'
+      - name: Set up Android SDK (используем предустановленную версию)
+        run: |
+          # Используем предустановленные cmdline-tools 12.0
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          export ANDROID_SDK_ROOT=$ANDROID_HOME
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+          
+          # Устанавливаем необходимые пакеты
+          yes | sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125" || true
       
       - name: Accept Android licenses
-        run: yes | flutter doctor --android-licenses || true
+        run: |
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          yes | flutter doctor --android-licenses || true
       
       - name: Build APK
-        run: flet build apk --yes
+        run: |
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          export ANDROID_SDK_ROOT=$ANDROID_HOME
+          flet build apk --yes
       
       - name: Upload APK
         uses: actions/upload-artifact@v4
