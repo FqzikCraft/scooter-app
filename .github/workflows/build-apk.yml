@@ -51,5 +51,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: scooter-app-apk
-          path: build/apk/app-release.apk
+          path: build/apk/*.apk
           retention-days: 7
+          if-no-files-found: error
