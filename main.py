@@ -64,7 +64,7 @@ async def main(page: ft.Page):
         m = folium.Map(
             location=[map_points[0]['lat'], map_points[0]['lon']], 
             zoom_start=12, 
-            tiles="CartoDB voyager"  # Светлый стиль, похож на Яндекс
+            tiles="CartoDB voyager"
         )
         
         for i, point in enumerate(map_points, 1):
@@ -97,59 +97,26 @@ async def main(page: ft.Page):
                 ).add_to(m)
 
         try:
-            # 📁 Определяем путь для сохранения
-            if platform.system() == 'Android' or os.path.exists('/sdcard'):
-                # Android: сохраняем в публичную папку Download
-                map_path = "/storage/emulated/0/Download/route_map.html"
-            else:
-                # ПК: сохраняем в локальную папку
-                map_path = os.path.join(os.getcwd(), "route_map.html")
-            
-            # Создаём папку если нужно и сохраняем
-            os.makedirs(os.path.dirname(map_path), exist_ok=True)
+            # 📁 Сохраняем в ПРИБАВКУ ПРИЛОЖЕНИЯ (всегда есть доступ!)
+            app_dir = os.getcwd()  # Папка приложения: /data/user/0/com.flet.scooter_app/files/flet/app/
+            map_path = os.path.join(app_dir, "route_map.html")
             m.save(map_path)
             
-            result_text.value = "✅ Карта сохранена!"
+            result_text.value = "✅ Карта создана!"
             result_text.color = ft.Colors.GREEN
             page.update()
             
-            # 🚀 Пытаемся открыть файл автоматически
-            opened = False
-            
-            # Метод 1: UrlLauncher с правильным URI
+            # 🚀 Пробуем открыть файл
             try:
-                # Для Android нужен префикс file:/// (три слэша)
-                if platform.system() == 'Android' or os.path.exists('/sdcard'):
-                    file_uri = f"file://{map_path}"
-                else:
-                    # Windows: file:///C:/path
-                    file_uri = f"file:///{map_path.replace('\\', '/')}" if os.name == 'nt' else f"file://{map_path}"
-                
+                # Пытаемся открыть через UrlLauncher
                 launcher = ft.UrlLauncher()
-                await launcher.launch_url(file_uri)
-                opened = True
-            except Exception:
-                pass
-            
-            # Метод 2: Стандартный webbrowser (для ПК)
-            if not opened and platform.system() != 'Android':
-                try:
-                    import webbrowser
-                    webbrowser.open(map_path)
-                    opened = True
-                except Exception:
-                    pass
-            
-            # Если авто-открытие не сработало — показываем инструкцию
-            if not opened:
-                result_text.value = "📁 Карта в папке Загрузки!\n\n📍 Файл: route_map.html\n\nКак открыть:\n1️⃣ Откройте 'Мои файлы' / 'Files'\n2️⃣ Перейдите в 'Загрузки' / 'Download'\n3️⃣ Нажмите на route_map.html\n4️⃣ Выберите 'Chrome' или 'Браузер'"
+                await launcher.launch_url(f"file://{map_path}")
+            except Exception as launch_err:
+                # Если не удалось — показываем что файл сохранён
+                result_text.value = "✅ Карта сохранена!\n\n📂 Файл: route_map.html\n\n📱 Чтобы открыть:\n1. Подключите телефон к ПК\n2. Найдите папку приложения\n3. Скопируйте route_map.html\n4. Откройте на телефоне\n\nИли откройте через файловый менеджер внутри папки приложения"
                 result_text.color = ft.Colors.ORANGE
                 page.update()
                 
-        except PermissionError:
-            result_text.value = "⚠️ Нет доступа к файлам!\n\nРазрешите доступ в настройках приложения"
-            result_text.color = ft.Colors.RED
-            page.update()
         except Exception as ex:
             result_text.value = f"⚠️ Ошибка: {str(ex)[:50]}"
             result_text.color = ft.Colors.RED
