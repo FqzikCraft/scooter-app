@@ -21,11 +21,44 @@ jobs:
           pip install flet-cli
           flet --version
       
+      - name: Set up Flutter
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget unzip xz-utils zip libglu1-mesa
+          
+          # Скачиваем и устанавливаем Flutter
+          cd /opt
+          sudo wget -q https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.24.0-stable.tar.xz
+          sudo tar xf flutter_linux_3.24.0-stable.tar.xz
+          sudo rm flutter_linux_3.24.0-stable.tar.xz
+          echo "/opt/flutter/bin" >> $GITHUB_PATH
+          
+          # Проверяем установку
+          flutter --version
+          flutter doctor -v
+          
+          # Принимаем лицензии Android автоматически
+          yes | flutter doctor --android-licenses || true
+      
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 9.0
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
+      
       - name: Build APK
-        run: flet build apk
-        
+        run: |
+          # Устанавливаем переменные окружения для Android
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          export ANDROID_SDK_ROOT=$ANDROID_HOME
+          export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin
+          
+          # Собираем APK с флагом --yes (авто-подтверждение)
+          flet build apk --yes
+      
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: scooter-app-apk
           path: build/app/outputs/apk/release/app-release.apk
+          retention-days: 7
