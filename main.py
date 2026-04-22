@@ -36,7 +36,7 @@ async def main(page: ft.Page):
         if not addresses:
             result_text.value = "⚠️ Введите адреса!"
             result_text.color = ft.Colors.ORANGE
-            page.update()  # ✅ Обычный update() работает в async
+            page.update()
             return
 
         btn.disabled = True
@@ -77,30 +77,47 @@ async def main(page: ft.Page):
                     color="#ffcc00", weight=3, opacity=0.8
                 ).add_to(m)
 
-                try:
-            # Сохраняем карту
-            map_path = os.path.join(os.getcwd(), "route_map.html")
-            m.save(map_path)
+        try:
+            # 📁 Сохраняем в ОБЩЕДОСТУПНУЮ папку Downloads (Android)
+            # Пробуем несколько вариантов путей
+            possible_paths = [
+                "/storage/emulated/0/Download/route_map.html",  # Стандартный путь на Android
+                "/sdcard/Download/route_map.html",               # Альтернативный путь
+                os.path.join(os.path.expanduser("~"), "Downloads", "route_map.html"),  # Для ПК
+            ]
             
-            result_text.value = "✅ Карта готова!"
+            map_path = None
+            for path in possible_paths:
+                try:
+                    os.makedirs(os.path.dirname(path), exist_ok=True)
+                    m.save(path)
+                    map_path = path
+                    break
+                except:
+                    continue
+            
+            if not map_path:
+                # Если ничего не сработало — сохраняем в папку приложения
+                map_path = os.path.join(os.getcwd(), "route_map.html")
+                m.save(map_path)
+            
+            result_text.value = "✅ Карта сохранена в Загрузки!"
             result_text.color = ft.Colors.GREEN
             page.update()
             
-            # 🔧 Правильный способ для Android 7.0+
+            # 🚀 Открываем файл
             try:
-                # Пробуем открыть через UrlLauncher с правильным URI
-                from pathlib import Path
-                file_uri = f"content://com.flet.fletproject.fileprovider/files/{os.path.abspath(map_path)}"
-                await ft.UrlLauncher().launch_url(file_uri)
-            except:
-                # Если не вышло — показываем инструкцию
-                result_text.value = "📁 Карта сохранена как route_map.html\nОткройте её через файловый менеджер"
+                launcher = ft.UrlLauncher()
+                await launcher.launch_url(f"file://{map_path}")
+            except Exception as launch_error:
+                result_text.value = f"✅ Карта в папке Download!\n\nОткройте 'Мои файлы' → Download → route_map.html"
                 result_text.color = ft.Colors.ORANGE
                 page.update()
                 
         except Exception as ex:
-            result_text.value = f"⚠️ Ошибка: {str(ex)[:50]}..."
+            result_text.value = f"⚠️ Ошибка сохранения: {str(ex)[:50]}"
             result_text.color = ft.Colors.RED
+            page.update()
         finally:
             btn.disabled = False
             progress_ring.visible = False
