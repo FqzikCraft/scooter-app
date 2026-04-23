@@ -2,7 +2,6 @@ import flet as ft
 import folium
 import requests
 import os
-import platform
 
 def get_coords(address):
     try:
@@ -48,8 +47,7 @@ async def main(page: ft.Page):
 
         map_points = []
         for addr in addresses:
-            coords = get_coords(addr)
-            if coords:
+            coords = get_coords(addr)            if coords:
                 map_points.append({"address": addr, "lat": coords[0], "lon": coords[1]})
         
         if not map_points:
@@ -97,33 +95,57 @@ async def main(page: ft.Page):
                 ).add_to(m)
 
         try:
-            # 📁 Сохраняем в ПРИБАВКУ ПРИЛОЖЕНИЯ (всегда есть доступ!)
-            app_dir = os.getcwd()  # Папка приложения: /data/user/0/com.flet.scooter_app/files/flet/app/
-            map_path = os.path.join(app_dir, "route_map.html")
-            m.save(map_path)
-            
-            result_text.value = "✅ Карта создана!"
-            result_text.color = ft.Colors.GREEN
-            page.update()
-            
-            # 🚀 Пробуем открыть файл
-            try:
-                # Пытаемся открыть через UrlLauncher
-                launcher = ft.UrlLauncher()
-                await launcher.launch_url(f"file://{map_path}")
-            except Exception as launch_err:
-                # Если не удалось — показываем что файл сохранён
-                result_text.value = "✅ Карта сохранена!\n\n📂 Файл: route_map.html\n\n📱 Чтобы открыть:\n1. Подключите телефон к ПК\n2. Найдите папку приложения\n3. Скопируйте route_map.html\n4. Откройте на телефоне\n\nИли откройте через файловый менеджер внутри папки приложения"
-                result_text.color = ft.Colors.ORANGE
-                page.update()
+            # 📁 Пробуем сохранить в Documents
+            if os.path.exists('/storage/emulated/0'):                save_dir = "/storage/emulated/0/Documents"
+            else:
+                save_dir = os.path.join(os.path.expanduser("~"), "Documents")
                 
-        except Exception as ex:
-            result_text.value = f"⚠️ Ошибка: {str(ex)[:50]}"
-            result_text.color = ft.Colors.RED
+            os.makedirs(save_dir, exist_ok=True)
+            map_path = os.path.join(save_dir, "route_map.html")
+            m.save(map_path)
+            folder_name = "Documents"
+            
+        except Exception:
+            # Если доступ заблокирован → сохраняем в папку приложения (гарантированно работает)
+            save_dir = os.getcwd()
+            map_path = os.path.join(save_dir, "route_map.html")
+            m.save(map_path)
+            folder_name = "папку приложения"
+
+        result_text.value = "✅ Карта сохранена!"
+        result_text.color = ft.Colors.GREEN
+        page.update()
+        
+        # 📱 Показываем понятное окно с путём
+        page.dialog = ft.AlertDialog(
+            title=ft.Text("🗺️ Карта готова!", size=20, weight=ft.FontWeight.BOLD),
+            content=ft.Column([
+                ft.Text(f"📂 Файл сохранён в:", size=14, weight=ft.FontWeight.BOLD),
+                ft.Text(f"{folder_name}/route_map.html", size=16, color=ft.Colors.BLUE, weight=ft.FontWeight.BOLD, selectable=True),
+                ft.Divider(),
+                ft.Text("📱 Как открыть:", size=14, weight=ft.FontWeight.BOLD),
+                ft.Text("1. Откройте 'Мои файлы' / 'Файловый менеджер'", size=13),
+                ft.Text("2. Перейдите в папку 'Documents' (Документы)", size=13),
+                ft.Text("3. Найдите 'route_map.html'", size=13),
+                ft.Text("4. Нажмите на файл → 'Открыть через Chrome'", size=13),
+                ft.Divider(),
+                ft.Text("💡 Карта работает только с интернетом!", size=12, color=ft.Colors.ORANGE)
+            ], spacing=10, scroll=ft.ScrollMode.AUTO),
+            actions=[
+                ft.ElevatedButton("Понятно, закрыть", on_click=lambda _: close_dialog()),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        
+        def close_dialog():
+            page.dialog.open = False
             page.update()
+        
+        page.dialog.open = True
+        page.update()
+            
         finally:
-            btn.disabled = False
-            progress_ring.visible = False
+            btn.disabled = False            progress_ring.visible = False
             page.update()
 
     btn = ft.Button(
