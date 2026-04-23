@@ -29,7 +29,7 @@ async def main(page: ft.Page):
     )
     
     progress_ring = ft.ProgressRing(visible=False)
-    result_text = ft.Text("", color=ft.Colors.GREEN, size=14)
+    result_text = ft.Text("", color=ft.Colors.GREEN)
     
     async def build_map(e):
         addresses = [line.strip() for line in input_field.value.split('\n') if line.strip()]
@@ -58,12 +58,8 @@ async def main(page: ft.Page):
             page.update()
             return
 
-        # 🗺️ СВЕТЛАЯ КАРТА (как Яндекс.Карты)
-        m = folium.Map(
-            location=[map_points[0]['lat'], map_points[0]['lon']], 
-            zoom_start=12, 
-            tiles="CartoDB voyager"
-        )
+        # 🗺️ ИЗМЕНЕНО: светлая карта как у Яндекс.Карт
+        m = folium.Map(location=[map_points[0]['lat'], map_points[0]['lon']], zoom_start=12, tiles="CartoDB voyager")
         
         for i, point in enumerate(map_points, 1):
             folium.Marker(
@@ -82,8 +78,7 @@ async def main(page: ft.Page):
                         align-items: center; 
                         font-weight: bold;
                         border: 2px solid white;
-                        box-shadow: 0 0 5px rgba(0,0,0,0.3);
-                        font-size: 14px;
+                        box-shadow: 0 0 5px rgba(0,0,0,0.5);
                     ">{i}</div>
                 """)
             ).add_to(m)
@@ -91,61 +86,52 @@ async def main(page: ft.Page):
             if i > 1:
                 folium.PolyLine(
                     locations=[[map_points[i-2]['lat'], map_points[i-2]['lon']], [point['lat'], point['lon']]],
-                    color="#FF0000", weight=3, opacity=0.9
+                    color="#FF0000", weight=3, opacity=0.8
                 ).add_to(m)
 
         try:
-            # 📁 Пробуем сохранить в Documents
-            if os.path.exists('/storage/emulated/0'):                save_dir = "/storage/emulated/0/Documents"
-            else:
-                save_dir = os.path.join(os.path.expanduser("~"), "Documents")
-                
-            os.makedirs(save_dir, exist_ok=True)
-            map_path = os.path.join(save_dir, "route_map.html")
-            m.save(map_path)
-            folder_name = "Documents"
+            # 📁 Сохраняем в ОБЩЕДОСТУПНУЮ папку Downloads (Android)
+            # Пробуем несколько вариантов путей
+            possible_paths = [
+                "/storage/emulated/0/Download/route_map.html",  # Стандартный путь на Android
+                "/sdcard/Download/route_map.html",               # Альтернативный путь
+                os.path.join(os.path.expanduser("~"), "Downloads", "route_map.html"),  # Для ПК
+            ]            
+            map_path = None
+            for path in possible_paths:
+                try:
+                    os.makedirs(os.path.dirname(path), exist_ok=True)
+                    m.save(path)
+                    map_path = path
+                    break
+                except:
+                    continue
             
-        except Exception:
-            # Если доступ заблокирован → сохраняем в папку приложения (гарантированно работает)
-            save_dir = os.getcwd()
-            map_path = os.path.join(save_dir, "route_map.html")
-            m.save(map_path)
-            folder_name = "папку приложения"
-
-        result_text.value = "✅ Карта сохранена!"
-        result_text.color = ft.Colors.GREEN
-        page.update()
-        
-        # 📱 Показываем понятное окно с путём
-        page.dialog = ft.AlertDialog(
-            title=ft.Text("🗺️ Карта готова!", size=20, weight=ft.FontWeight.BOLD),
-            content=ft.Column([
-                ft.Text(f"📂 Файл сохранён в:", size=14, weight=ft.FontWeight.BOLD),
-                ft.Text(f"{folder_name}/route_map.html", size=16, color=ft.Colors.BLUE, weight=ft.FontWeight.BOLD, selectable=True),
-                ft.Divider(),
-                ft.Text("📱 Как открыть:", size=14, weight=ft.FontWeight.BOLD),
-                ft.Text("1. Откройте 'Мои файлы' / 'Файловый менеджер'", size=13),
-                ft.Text("2. Перейдите в папку 'Documents' (Документы)", size=13),
-                ft.Text("3. Найдите 'route_map.html'", size=13),
-                ft.Text("4. Нажмите на файл → 'Открыть через Chrome'", size=13),
-                ft.Divider(),
-                ft.Text("💡 Карта работает только с интернетом!", size=12, color=ft.Colors.ORANGE)
-            ], spacing=10, scroll=ft.ScrollMode.AUTO),
-            actions=[
-                ft.ElevatedButton("Понятно, закрыть", on_click=lambda _: close_dialog()),
-            ],
-            actions_alignment=ft.MainAxisAlignment.END,
-        )
-        
-        def close_dialog():
-            page.dialog.open = False
+            if not map_path:
+                # Если ничего не сработало — сохраняем в папку приложения
+                map_path = os.path.join(os.getcwd(), "route_map.html")
+                m.save(map_path)
+            
+            result_text.value = "✅ Карта сохранена в Загрузки!"
+            result_text.color = ft.Colors.GREEN
             page.update()
-        
-        page.dialog.open = True
-        page.update()
             
+            # 🚀 Открываем файл
+            try:
+                launcher = ft.UrlLauncher()
+                await launcher.launch_url(f"file://{map_path}")
+            except Exception as launch_error:
+                result_text.value = f"✅ Карта в папке Download!\n\nОткройте 'Мои файлы' → Download → route_map.html"
+                result_text.color = ft.Colors.ORANGE
+                page.update()
+                
+        except Exception as ex:
+            result_text.value = f"⚠️ Ошибка сохранения: {str(ex)[:50]}"
+            result_text.color = ft.Colors.RED
+            page.update()
         finally:
-            btn.disabled = False            progress_ring.visible = False
+            btn.disabled = False
+            progress_ring.visible = False
             page.update()
 
     btn = ft.Button(
@@ -159,8 +145,7 @@ async def main(page: ft.Page):
         ft.Column(
             [title, ft.Container(height=20), input_field, ft.Container(height=10), 
              ft.Row([progress_ring, result_text], alignment=ft.MainAxisAlignment.CENTER), btn],
-            alignment=ft.MainAxisAlignment.CENTER,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            alignment=ft.MainAxisAlignment.CENTER,            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             expand=True
         )
     )
